@@ -80,25 +80,32 @@ mbcheck --quiet "A123456789&20240701001&260530103&KDKK00001&0&O&9&1&C&2&1"
 
 ### CSV File Processing
 
-Process multiple MB strings from a CSV file:
+Process multiple EDIFACT format strings from a CSV file:
 
 ```bash
 # Process CSV file (uses column "Meldebestaetigung" or column 2 by default)
+# TAN is read from column "Vorgangsnummer" or column 1 by default
 mbcheck --csv meldungen.csv
 
-# Specify a different column name
+# Specify a different column name for MB strings
 mbcheck --csv meldungen.csv --column MB_Feld
 
 # Specify column by number (1-based)
 mbcheck --csv meldungen.csv --column-number 3
+
+# Specify a different TAN column
+mbcheck --csv meldungen.csv --tan-column TransaktionsNr
+
+# Specify TAN column by number (1-based)
+mbcheck --csv meldungen.csv --tan-column-number 1
 
 # Combine with output format options
 mbcheck --csv meldungen.csv --text --quiet
 ```
 
 The CSV file is expected to have a header row. By default, the tool looks for:
-- A column named "Meldebestaetigung", or
-- Column 2 (if the named column is not found)
+- MB strings in column "Meldebestaetigung" (or column 2)
+- TAN (Vorgangsnummer) in column "Vorgangsnummer" (or column 1)
 
 ## MB Format Specification
 

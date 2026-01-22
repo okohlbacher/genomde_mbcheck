@@ -61,9 +61,11 @@ mbcheck --csv meldungen.csv
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--csv DATEI` | | Read MB strings from CSV file |
+| `--csv DATEI` | | Read EDIFACT format strings from CSV file |
 | `--column NAME` | `-C` | Column name for MB strings (default: "Meldebestaetigung") |
 | `--column-number NR` | `-N` | Column number, 1-based (default: 2) |
+| `--tan-column NAME` | `-T` | Column name for TAN (default: "Vorgangsnummer") |
+| `--tan-column-number NR` | | Column number for TAN, 1-based (default: 1) |
 | `--json` | `-j` | Output as JSON (default) |
 | `--text` | `-t` | Output as human-readable text |
 | `--hash` | `-H` | Output only SHA256 hash |
@@ -74,12 +76,13 @@ mbcheck --csv meldungen.csv
 
 The CSV file should have:
 - A header row with column names
-- MB strings in the "Meldebestaetigung" column (or column 2)
+- TAN (Transaction Authentication Number) in the "Vorgangsnummer" column (or column 1)
+- EDIFACT format strings in the "Meldebestaetigung" column (or column 2)
 
 Example CSV structure:
 ```csv
 Vorgangsnummer,Meldebestaetigung
-hash123,A123456789&20240701001&260530103&KDKK00001&0&O&9&1&C&2&1
+b31bb6c8fe6d1566704ee34a8140600c0f3c051d3fd94e26ea9d432ecc686f02,IBE+1N4I391IHS+1N4I391IHS&20260122005&000000000&000000000&0&O&9&1&C&3&1+9+0241af4ce0f96120d99128d3092f6f6b9387c979fa9d7cdd1c32e6d73d2c6a28
 ```
 
 ## Data Formats

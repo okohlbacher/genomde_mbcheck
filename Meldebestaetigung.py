@@ -392,3 +392,85 @@ def parse_mb_string(mb_string: str) -> Meldebestaetigung:
         A Meldebestaetigung instance
     """
     return Meldebestaetigung.from_string(mb_string)
+
+
+@dataclass
+class EdifactResult:
+    """Result of parsing an EDIFACT format string."""
+
+    tan: Optional[str]  # Transaction Authentication Number (TAN)
+    meldebestaetigung: Meldebestaetigung  # Parsed MB data
+    embedded_hash: Optional[str]  # Hash embedded in the EDIFACT string
+    embedded_produktzuordnung: Optional[str]  # Produktzuordnung from trailer
+
+
+def parse_edifact_string(edifact_string: str) -> EdifactResult:
+    """
+    Parse an EDIFACT format string containing a Meldebestätigung.
+
+    The EDIFACT format is:
+    IBE+<TAN>+<alphanumerischer_code>&<field2>&...&<field10>&<field11>+<produktzuordnung>+<hash>
+
+    Args:
+        edifact_string: The EDIFACT format string
+
+    Returns:
+        EdifactResult with TAN, Meldebestaetigung, and embedded hash
+
+    Raises:
+        ValueError: If the string format is invalid
+    """
+    # Check for IBE+ prefix
+    if not edifact_string.startswith("IBE+"):
+        raise ValueError("EDIFACT String muss mit 'IBE+' beginnen")
+
+    # Remove IBE+ prefix
+    content = edifact_string[4:]
+
+    # Split by + to get components
+    # Format: <TAN>+<alphanumerischer_code>&...&<qk>+<produktzuordnung>+<hash>
+    plus_parts = content.split("+")
+
+    if len(plus_parts) < 2:
+        raise ValueError("EDIFACT String hat ungültiges Format")
+
+    tan = plus_parts[0]
+
+    # The second part contains the MB string (with & separators)
+    # But the last field may have +produktzuordnung+hash appended
+    # Reconstruct: everything from plus_parts[1] onwards, joined by +
+    rest = "+".join(plus_parts[1:])
+
+    # Now split by & to get the MB fields
+    ampersand_parts = rest.split("&")
+
+    if len(ampersand_parts) != 11:
+        raise ValueError(
+            f"EDIFACT MB Format erwartet 11 Felder, aber {len(ampersand_parts)} gefunden"
+        )
+
+    # The last field may contain +produktzuordnung+hash
+    last_field = ampersand_parts[10]
+    embedded_hash = None
+    embedded_produktzuordnung = None
+
+    if "+" in last_field:
+        last_parts = last_field.split("+")
+        ampersand_parts[10] = last_parts[0]  # qualitaetskontrolle
+        if len(last_parts) >= 2:
+            embedded_produktzuordnung = last_parts[1]
+        if len(last_parts) >= 3:
+            embedded_hash = last_parts[2]
+
+    # Build the pure MB string
+    mb_string = "&".join(ampersand_parts)
+
+    # Parse the MB string
+    mb = Meldebestaetigung.from_string(mb_string)
+
+    return EdifactResult(
+        tan=tan,
+        meldebestaetigung=mb,
+        embedded_hash=embedded_hash,
+        embedded_produktzuordnung=embedded_produktzuordnung,
+    )

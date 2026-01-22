@@ -12,7 +12,7 @@ import argparse
 import csv
 import sys
 
-from Meldebestaetigung import parse_mb_string
+from Meldebestaetigung import parse_mb_string, parse_edifact_string
 
 DEFAULT_COLUMN_NAME = "Meldebestaetigung"
 DEFAULT_COLUMN_NUMBER = 2  # 1-based column number
@@ -48,21 +48,69 @@ def process_mb_string(mb_string: str, args) -> dict:
     return result
 
 
-def process_csv_file(filepath: str, column_name: str, column_number: int, args) -> list[dict]:
+def process_edifact_string(edifact_string: str, args) -> dict:
     """
-    Process a CSV file containing MB format strings.
+    Process an EDIFACT format string and return result dict.
+
+    Returns a dict with 'success', 'input', 'output', and optionally 'error' keys.
+    Note: TAN is not extracted from EDIFACT - it comes from the CSV's Vorgangsnummer column.
+    """
+    result = {"input": edifact_string, "success": False}
+
+    try:
+        edifact_result = parse_edifact_string(edifact_string)
+        mb = edifact_result.meldebestaetigung
+
+        if args.hash:
+            result["output"] = mb.compute_hash()
+        elif args.text:
+            result["output"] = repr(mb)
+        else:
+            # JSON output - include embedded hash info
+            data = mb.to_dict()
+            if edifact_result.embedded_hash:
+                data["embedded_hash"] = edifact_result.embedded_hash
+                data["hash_valid"] = (edifact_result.embedded_hash == mb.compute_hash())
+            indent = None if args.compact else 2
+            import json
+            result["output"] = json.dumps(data, indent=indent, ensure_ascii=False)
+
+        result["success"] = True
+
+    except ValueError as e:
+        result["error"] = str(e)
+    except Exception as e:
+        result["error"] = f"Unerwarteter Fehler: {e}"
+
+    return result
+
+
+DEFAULT_TAN_COLUMN_NAME = "Vorgangsnummer"
+DEFAULT_TAN_COLUMN_NUMBER = 1  # 1-based column number
+
+
+def process_csv_file(filepath: str, column_name: str, column_number: int,
+                     tan_column_name: str, tan_column_number: int, args) -> list[dict]:
+    """
+    Process a CSV file containing EDIFACT format strings.
+
+    CSV files are expected to contain EDIFACT format (IBE+...) strings.
+    The TAN (Transaction Authentication Number) is read from a separate column.
 
     Args:
         filepath: Path to the CSV file
-        column_name: Column name to look for (used if CSV has header)
-        column_number: 1-based column number (used if CSV has no header or column name not found)
+        column_name: Column name for MB strings (used if CSV has header)
+        column_number: 1-based column number for MB strings (fallback)
+        tan_column_name: Column name for TAN (used if CSV has header)
+        tan_column_number: 1-based column number for TAN (fallback)
         args: Parsed command line arguments
 
     Returns:
-        List of result dicts with 'row', 'success', 'input', 'output'/'error' keys.
+        List of result dicts with 'row', 'success', 'input', 'output', 'tan', and optionally 'error' keys.
     """
     results = []
     col_idx = column_number - 1  # Convert to 0-based index
+    tan_col_idx = tan_column_number - 1  # Convert to 0-based index
 
     with open(filepath, newline='', encoding='utf-8') as csvfile:
         # Detect if file has a header by checking first line
@@ -80,7 +128,7 @@ def process_csv_file(filepath: str, column_name: str, column_number: int, args) 
             if not reader.fieldnames:
                 raise ValueError("CSV-Datei hat keine Spalten")
 
-            # Try to find the column by name, fall back to column number
+            # Try to find the MB column by name, fall back to column number
             if column_name in reader.fieldnames:
                 col_name = column_name
             elif col_idx < len(reader.fieldnames):
@@ -91,11 +139,21 @@ def process_csv_file(filepath: str, column_name: str, column_number: int, args) 
                     f"existiert nicht (nur {len(reader.fieldnames)} Spalten vorhanden)"
                 )
 
+            # Try to find the TAN column by name, fall back to column number
+            if tan_column_name in reader.fieldnames:
+                tan_col_name = tan_column_name
+            elif tan_col_idx < len(reader.fieldnames):
+                tan_col_name = reader.fieldnames[tan_col_idx]
+            else:
+                tan_col_name = None  # TAN column not found
+
             for row_num, row in enumerate(reader, start=2):  # start=2 because row 1 is header
-                mb_string = row.get(col_name, "").strip()
-                if mb_string:  # Skip empty rows
-                    result = process_mb_string(mb_string, args)
+                edifact_string = row.get(col_name, "").strip()
+                if edifact_string:  # Skip empty rows
+                    tan = row.get(tan_col_name, "").strip() if tan_col_name else None
+                    result = process_edifact_string(edifact_string, args)
                     result["row"] = row_num
+                    result["tan"] = tan  # Override with TAN from CSV column
                     results.append(result)
         else:
             # No header - use column number
@@ -103,10 +161,12 @@ def process_csv_file(filepath: str, column_name: str, column_number: int, args) 
 
             for row_num, row in enumerate(reader, start=1):
                 if row and len(row) > col_idx:
-                    mb_string = row[col_idx].strip()
-                    if mb_string:  # Skip empty rows
-                        result = process_mb_string(mb_string, args)
+                    edifact_string = row[col_idx].strip()
+                    if edifact_string:  # Skip empty rows
+                        tan = row[tan_col_idx].strip() if len(row) > tan_col_idx else None
+                        result = process_edifact_string(edifact_string, args)
                         result["row"] = row_num
+                        result["tan"] = tan  # Override with TAN from CSV column
                         results.append(result)
 
     return results
@@ -141,7 +201,7 @@ Standard-Spalte: "{DEFAULT_COLUMN_NAME}" (Spalte {DEFAULT_COLUMN_NUMBER})
     parser.add_argument(
         "--csv",
         metavar="DATEI",
-        help="CSV-Datei mit MB-Format Strings einlesen"
+        help="CSV-Datei mit EDIFACT-Format Strings einlesen (IBE+TAN+...)"
     )
 
     parser.add_argument(
@@ -157,6 +217,21 @@ Standard-Spalte: "{DEFAULT_COLUMN_NAME}" (Spalte {DEFAULT_COLUMN_NUMBER})
         type=int,
         default=DEFAULT_COLUMN_NUMBER,
         help=f"Spaltennummer (1-basiert) für MB-Strings in CSV (Standard: {DEFAULT_COLUMN_NUMBER})"
+    )
+
+    parser.add_argument(
+        "--tan-column", "-T",
+        metavar="NAME",
+        default=DEFAULT_TAN_COLUMN_NAME,
+        help=f"Spaltenname für TAN in CSV (Standard: '{DEFAULT_TAN_COLUMN_NAME}')"
+    )
+
+    parser.add_argument(
+        "--tan-column-number",
+        metavar="NR",
+        type=int,
+        default=DEFAULT_TAN_COLUMN_NUMBER,
+        help=f"Spaltennummer (1-basiert) für TAN in CSV (Standard: {DEFAULT_TAN_COLUMN_NUMBER})"
     )
 
     output_group = parser.add_mutually_exclusive_group()
@@ -200,6 +275,9 @@ Standard-Spalte: "{DEFAULT_COLUMN_NAME}" (Spalte {DEFAULT_COLUMN_NUMBER})
     if args.column_number < 1:
         parser.error("Spaltennummer muss >= 1 sein")
 
+    if args.tan_column_number < 1:
+        parser.error("TAN-Spaltennummer muss >= 1 sein")
+
     # Suppress warnings if requested
     if args.quiet:
         import warnings
@@ -208,7 +286,8 @@ Standard-Spalte: "{DEFAULT_COLUMN_NAME}" (Spalte {DEFAULT_COLUMN_NUMBER})
     # Process CSV file
     if args.csv:
         try:
-            results = process_csv_file(args.csv, args.column, args.column_number, args)
+            results = process_csv_file(args.csv, args.column, args.column_number,
+                                       args.tan_column, args.tan_column_number, args)
 
             # Output results
             success_count = sum(1 for r in results if r["success"])
@@ -216,7 +295,8 @@ Standard-Spalte: "{DEFAULT_COLUMN_NAME}" (Spalte {DEFAULT_COLUMN_NUMBER})
 
             for result in results:
                 if result["success"]:
-                    print(f"--- Zeile {result['row']} ---")
+                    tan_info = f" [TAN: {result['tan']}]" if result.get("tan") else ""
+                    print(f"--- Zeile {result['row']}{tan_info} ---")
                     print(result["output"])
                     print()
                 else:
