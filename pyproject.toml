@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genomDE_mbcheck"
+version = "1.0.0"
+description = "A Python library to parse, validate, and convert MB Format strings (Meldebestaetigung) for MV GenomSeq"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Oliver Kohlbacher", email = "oliver.kohlbacher@uni-tuebingen.de"}
+]
+maintainers = [
+    {name = "Oliver Kohlbacher", email = "oliver.kohlbacher@uni-tuebingen.de"}
+]
+keywords = [
+    "genomics",
+    "genomde",
+    "mvgenomseq",
+    "meldebestaetigung",
+    "healthcare",
+    "german",
+    "parser"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Typing :: Typed",
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/kohlbacherlab/genomDE_mbcheck"
+Documentation = "https://github.com/kohlbacherlab/genomDE_mbcheck#readme"
+Repository = "https://github.com/kohlbacherlab/genomDE_mbcheck.git"
+Issues = "https://github.com/kohlbacherlab/genomDE_mbcheck/issues"
+
+[project.scripts]
+mbcheck = "mbcheck:main"
+
+[tool.setuptools]
+py-modules = ["Meldebestaetigung", "mbcheck"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+select = ["E", "F", "W", "I", "N", "D", "UP", "B", "C4", "SIM"]
+ignore = ["D100", "D104"]
