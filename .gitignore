@@ -53,3 +53,6 @@ htmlcov/
 
 # mypy
 .mypy_cache/
+
+# Technical specification documents (proprietary)
+Tech Spec/
